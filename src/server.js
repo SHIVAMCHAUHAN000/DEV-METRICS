@@ -10,6 +10,19 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Validate required env vars early to provide clearer deploy errors
+const requiredEnv = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'GITHUB_CALLBACK_URL', 'SESSION_SECRET'];
+const missing = requiredEnv.filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error('Missing required environment variables:', missing.join(', '));
+  if (process.env.NODE_ENV === 'production') {
+    console.error('In production NODE_ENV, exiting due to missing env vars.');
+    process.exit(1);
+  } else {
+    console.warn('Continuing in development mode. Set the missing variables before deploying to production.');
+  }
+}
+
 const app = express();
 const port = process.env.PORT || 5001;
 
@@ -29,6 +42,13 @@ const cacheStats = {
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static('public'));
+// WARNING: Default MemoryStore is not suitable for production (will leak memory and won't scale).
+// Use a persistent session store like Redis in production and set REDIS_URL accordingly.
+if (process.env.REDIS_URL) {
+  console.warn('REDIS_URL detected. You should configure a Redis-backed session store for production.');
+  // If desired, integrate connect-redis here. For now, continue using express-session.
+}
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-key',
   resave: false,
