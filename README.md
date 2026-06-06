@@ -82,8 +82,7 @@ npm run dev
 
 ## Deployment
 
-Deploy to Heroku, Railway, or Vercel. Remember to update `GITHUB_CALLBACK_URL` in production.
-
+vercel
 ## License
 
 MIT
