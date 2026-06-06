@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevMetrics - Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 60px 40px;
+      text-align: center;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 32px;
+    }
+    p {
+      color: #666;
+      margin-bottom: 40px;
+      line-height: 1.6;
+    }
+    .features {
+      text-align: left;
+      background: #f5f5f5;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      font-size: 14px;
+      color: #666;
+    }
+    .features li {
+      margin: 10px 0;
+      list-style-position: inside;
+    }
+    .github-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #24292e;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .github-btn:hover {
+      background: #1a1e22;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 DevMetrics</h1>
+    <p>Analyze GitHub repositories with OAuth & cached performance metrics</p>
+    
+    <div class="features">
+      <ul>
+        <li>Secure GitHub OAuth authentication</li>
+        <li>Real-time repository metrics (stars, forks, issues)</li>
+        <li>Node-Cache: 70%+ faster with intelligent caching</li>
+        <li>Track cache hit rate and API performance</li>
+      </ul>
+    </div>
+
+    <a href="/auth/github" class="github-btn">
+      <span>🔐</span>
+      <span>Login with GitHub</span>
+    </a>
+  </div>
+</body>
+</html>

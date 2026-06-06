@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevMetrics - Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .header {
+      background: white;
+      padding: 20px 40px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .user-info img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+    }
+    .logout-btn {
+      background: #667eea;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .section {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    h2 {
+      color: #333;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    input {
+      flex: 1;
+      padding: 10px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: #764ba2; }
+    .repo-info {
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    .metric {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+    .metric-card {
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      text-align: center;
+      border-left: 4px solid #667eea;
+    }
+    .metric-card h4 {
+      color: #999;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .metric-card .value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+    }
+    .cache-indicator {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .from-cache {
+      background: #d4edda;
+      color: #155724;
+    }
+    .from-api {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .stat-box {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+    .stat-label {
+      color: #666;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    .stat-value {
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📊 DevMetrics Dashboard</h1>
+    <div class="user-info">
+      <img id="user-avatar" src="" alt="Avatar">
+      <div>
+        <div id="user-name"></div>
+        <small id="user-username"></small>
+      </div>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Repository Search -->
+    <div class="section">
+      <h2>📦 Analyze Repository</h2>
+      <div class="form-group">
+        <input type="text" id="owner" placeholder="Repository owner (e.g., facebook)">
+        <input type="text" id="repo" placeholder="Repository name (e.g., react)">
+        <button onclick="fetchMetrics()">Fetch Metrics</button>
+      </div>
+      <div id="repo-info" class="repo-info" style="display:none;"></div>
+    </div>
+
+    <!-- Cache Statistics -->
+    <div class="section">
+      <h2>⚡ Cache Performance Statistics</h2>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-label">Total Requests</div>
+          <div class="stat-value" id="total-requests">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Cache Hits</div>
+          <div class="stat-value" id="cache-hits">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Cache Misses</div>
+          <div class="stat-value" id="cache-misses">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Hit Rate</div>
+          <div class="stat-value" id="hit-rate">0%</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">API Calls Made</div>
+          <div class="stat-value" id="api-calls">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Cached Items</div>
+          <div class="stat-value" id="cache-size">0</div>
+        </div>
+      </div>
+      <button onclick="refreshStats()" style="margin-top: 20px;">Refresh Statistics</button>
+    </div>
+  </div>
+
+  <script>
+    // Load user data on page load
+    async function loadUser() {
+      try {
+        const response = await fetch('/api/user');
+        const user = await response.json();
+        document.getElementById('user-avatar').src = user.avatar;
+        document.getElementById('user-name').textContent = user.name || user.username;
+        document.getElementById('user-username').textContent = '@' + user.username;
+      } catch (error) {
+        console.error('Error loading user:', error);
+      }
+    }
+
+    async function fetchMetrics() {
+      const owner = document.getElementById('owner').value;
+      const repo = document.getElementById('repo').value;
+
+      if (!owner || !repo) {
+        alert('Please enter both owner and repository name');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/repo-metrics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ owner, repo })
+        });
+
+        const data = await response.json();
+        displayRepoInfo(data);
+        refreshStats();
+      } catch (error) {
+        alert('Error fetching metrics: ' + error.message);
+      }
+    }
+
+    function displayRepoInfo(data) {
+      const cacheIndicator = data.fromCache 
+        ? '<span class="cache-indicator from-cache">⚡ From Cache</span>'
+        : '<span class="cache-indicator from-api">🔄 Fresh from API</span>';
+
+      const html = `
+        <h3>${data.name}</h3>
+        <p><a href="${data.url}" target="_blank">${data.owner}/${data.name}</a></p>
+        <p>${data.description || 'No description'}</p>
+        ${cacheIndicator}
+        <div class="metric">
+          <div class="metric-card">
+            <h4>Stars</h4>
+            <div class="value">${data.stars}</div>
+          </div>
+          <div class="metric-card">
+            <h4>Forks</h4>
+            <div class="value">${data.forks}</div>
+          </div>
+          <div class="metric-card">
+            <h4>Issues</h4>
+            <div class="value">${data.issues}</div>
+          </div>
+          <div class="metric-card">
+            <h4>Watchers</h4>
+            <div class="value">${data.watchers}</div>
+          </div>
+          <div class="metric-card">
+            <h4>Language</h4>
+            <div class="value">${data.language || 'N/A'}</div>
+          </div>
+          <div class="metric-card">
+            <h4>API Response</h4>
+            <div class="value">${data.apiResponseTime}ms</div>
+          </div>
+        </div>
+      `;
+
+      const repoDiv = document.getElementById('repo-info');
+      repoDiv.innerHTML = html;
+      repoDiv.style.display = 'block';
+    }
+
+    async function refreshStats() {
+      try {
+        const response = await fetch('/api/cache-stats');
+        const stats = await response.json();
+        
+        document.getElementById('total-requests').textContent = stats.totalRequests;
+        document.getElementById('cache-hits').textContent = stats.cacheHits;
+        document.getElementById('cache-misses').textContent = stats.cacheMisses;
+        document.getElementById('hit-rate').textContent = stats.hitRate;
+        document.getElementById('api-calls').textContent = stats.apiCallsMade;
+        document.getElementById('cache-size').textContent = stats.cacheSize;
+      } catch (error) {
+        console.error('Error loading cache stats:', error);
+      }
+    }
+
+    function logout() {
+      window.location.href = '/logout';
+    }
+
+    // Load user on page load
+    loadUser();
+    refreshStats();
+    setInterval(refreshStats, 10000);
+  </script>
+</body>
+</html>
