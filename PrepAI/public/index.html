@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrepAI - Interview Preparation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: 500;
+    }
+    select, textarea, button {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    select:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+    button:hover { background: #764ba2; }
+    .response {
+      background: #f5f5f5;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .metrics {
+      text-align: center;
+      font-size: 12px;
+      color: #999;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 PrepAI</h1>
+    
+    <div class="form-group">
+      <label>Select Topic:</label>
+      <select id="topic">
+        <option value="DSA">Data Structures & Algorithms</option>
+        <option value="System Design">System Design</option>
+        <option value="Behavioral">Behavioral</option>
+        <option value="JavaScript">JavaScript</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Difficulty:</label>
+      <select id="difficulty">
+        <option value="easy">Easy</option>
+        <option value="medium">Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+    </div>
+
+    <button onclick="generateQuestion()">Generate Question</button>
+
+    <div id="question-response" class="response" style="display:none;"></div>
+
+    <div class="form-group" style="margin-top: 30px;">
+      <label>Your Answer:</label>
+      <textarea id="answer" placeholder="Type your answer here..." rows="4"></textarea>
+    </div>
+
+    <button onclick="evaluateAnswer()">Get Feedback</button>
+
+    <div id="feedback-response" class="response" style="display:none;"></div>
+
+    <div class="metrics">
+      <p id="metrics-display">Metrics will load here...</p>
+    </div>
+  </div>
+
+  <script>
+    async function generateQuestion() {
+      const topic = document.getElementById('topic').value;
+      const difficulty = document.getElementById('difficulty').value;
+
+      try {
+        const response = await fetch('/api/generate-question', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic, difficulty })
+        });
+
+        const data = await response.json();
+        const responseDiv = document.getElementById('question-response');
+        responseDiv.textContent = data.question + '\n\nResponse time: ' + data.responseTime + 'ms';
+        responseDiv.style.display = 'block';
+
+        loadMetrics();
+      } catch (error) {
+        alert('Error generating question: ' + error.message);
+      }
+    }
+
+    async function evaluateAnswer() {
+      const question = document.getElementById('question-response').textContent;
+      const userAnswer = document.getElementById('answer').value;
+      const topic = document.getElementById('topic').value;
+
+      if (!userAnswer.trim()) {
+        alert('Please enter an answer first');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/evaluate-answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, userAnswer, topic })
+        });
+
+        const data = await response.json();
+        const responseDiv = document.getElementById('feedback-response');
+        responseDiv.textContent = data.feedback + '\n\nEvaluation time: ' + data.responseTime + 'ms';
+        responseDiv.style.display = 'block';
+
+        loadMetrics();
+      } catch (error) {
+        alert('Error evaluating answer: ' + error.message);
+      }
+    }
+
+    async function loadMetrics() {
+      try {
+        const response = await fetch('/api/health');
+        const data = await response.json();
+        document.getElementById('metrics-display').textContent = 
+          `Avg Response: ${data.metrics.avgResponseTime.toFixed(0)}ms | Total Requests: ${data.metrics.totalRequests}`;
+      } catch (error) {
+        console.error('Error loading metrics:', error);
+      }
+    }
+
+    loadMetrics();
+    setInterval(loadMetrics, 5000);
+  </script>
+</body>
+</html>

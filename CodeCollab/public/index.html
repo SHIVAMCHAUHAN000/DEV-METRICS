@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeCollab - Real-time Collaborative Editor</title>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@latest/min/vs/loader.min.js"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background: #252526;
+      padding: 15px 20px;
+      border-bottom: 1px solid #3e3e42;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    h1 {
+      font-size: 20px;
+      color: #007acc;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    input, button {
+      padding: 8px 12px;
+      border: 1px solid #3e3e42;
+      background: #3c3c3c;
+      color: #d4d4d4;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    input {
+      min-width: 150px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #007acc;
+      background: #1e1e1e;
+    }
+    button:hover {
+      background: #007acc;
+      border-color: #007acc;
+    }
+    .status {
+      font-size: 12px;
+      color: #858585;
+    }
+    .status.connected {
+      color: #4ec9b0;
+    }
+    .container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      gap: 1px;
+      background: #3e3e42;
+    }
+    #editor-container {
+      flex: 1;
+      min-width: 0;
+    }
+    .sidebar {
+      width: 250px;
+      background: #252526;
+      border-left: 1px solid #3e3e42;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .sidebar-section {
+      padding: 15px;
+      border-bottom: 1px solid #3e3e42;
+    }
+    .sidebar-section h3 {
+      font-size: 12px;
+      color: #858585;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .user-item {
+      padding: 8px;
+      background: #3c3c3c;
+      border-radius: 4px;
+      margin-bottom: 5px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .metric {
+      font-size: 12px;
+      color: #858585;
+      padding: 5px 0;
+    }
+    .metric-label {
+      color: #d4d4d4;
+      font-weight: 600;
+    }
+    .alert {
+      padding: 10px;
+      background: #4ec9b0;
+      color: #252526;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🚀 CodeCollab</h1>
+    <div class="controls">
+      <input type="text" id="session-id" placeholder="Session ID (auto-generated)">
+      <button onclick="createSession()">Create Session</button>
+      <button onclick="joinSession()">Join Session</button>
+      <select id="language">
+        <option value="javascript">JavaScript</option>
+        <option value="python">Python</option>
+        <option value="java">Java</option>
+        <option value="cpp">C++</option>
+        <option value="html">HTML</option>
+        <option value="sql">SQL</option>
+      </select>
+    </div>
+    <div class="status" id="status">Initializing...</div>
+  </div>
+
+  <div class="container">
+    <div id="editor-container"></div>
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <h3>📊 Session Info</h3>
+        <div id="session-info" class="metric">
+          No session yet
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>👥 Active Users</h3>
+        <div id="users-list"></div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>⚡ Performance Metrics</h3>
+        <div class="metric">
+          <div class="metric-label">Transform Time (avg):</div>
+          <div id="avg-transform">0ms</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Doc Length:</div>
+          <div id="doc-length">0 chars</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Operations:</div>
+          <div id="operation-count">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Latency:</div>
+          <div id="latency">0ms</div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>📝 Instructions</h3>
+        <div style="font-size: 12px; line-height: 1.5; color: #858585;">
+          <p style="margin-bottom: 10px;">
+            1. Click "Create Session" to start<br/>
+            2. Copy the Session ID<br/>
+            3. Open in another window<br/>
+            4. Click "Join Session" and paste ID<br/>
+            5. Type in either window to see real-time sync
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Monaco Editor
+    require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@latest/min/vs' }});
+
+    let editor;
+    let socket = io();
+    let sessionId = null;
+    let userId = null;
+    let lastTransformTime = 0;
+    let totalTransformTime = 0;
+    let operationCount = 0;
+    const metrics = { transformTimes: [], latencies: [] };
+
+    require(['vs/editor/editor.main'], function() {
+      editor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: '',
+        language: 'javascript',
+        theme: 'vs-dark',
+        fontSize: 14,
+        minimap: { enabled: true }
+      });
+
+      editor.onDidChangeModelContent(() => {
+        if (sessionId && editor.getModel()) {
+          // Send operation to server
+          const model = editor.getModel();
+          const content = model.getValue();
+          // This is a simplified version - in production, you'd track actual changes
+        }
+      });
+
+      // Track cursor position
+      editor.onDidChangeCursorPosition((e) => {
+        if (socket && sessionId) {
+          socket.emit('cursor:move', e.position.column);
+        }
+      });
+
+      updateStatus('Ready');
+    });
+
+    socket.on('connect', () => {
+      userId = socket.id;
+      updateStatus('Connected', true);
+    });
+
+    socket.on('operation:apply', (data) => {
+      const model = editor.getModel();
+      if (!model) return;
+
+      const op = data.operation;
+      const startPos = editor.getModel().getPositionAt(op.position);
+
+      if (op.type === 'insert') {
+        const range = new monaco.Range(
+          startPos.lineNumber, startPos.column,
+          startPos.lineNumber, startPos.column
+        );
+        editor.executeEdits('remote', [{ range, text: op.content }]);
+      } else if (op.type === 'delete') {
+        const endPos = editor.getModel().getPositionAt(op.position + op.content.length);
+        const range = new monaco.Range(
+          startPos.lineNumber, startPos.column,
+          endPos.lineNumber, endPos.column
+        );
+        editor.executeEdits('remote', [{ range, text: '' }]);
+      }
+
+      lastTransformTime = data.transformTime;
+      metrics.transformTimes.push(data.transformTime);
+      if (metrics.transformTimes.length > 20) metrics.transformTimes.shift();
+
+      document.getElementById('avg-transform').textContent = 
+        (metrics.transformTimes.reduce((a, b) => a + b, 0) / metrics.transformTimes.length).toFixed(1) + 'ms';
+      document.getElementById('doc-length').textContent = data.docLength + ' chars';
+      document.getElementById('operation-count').textContent = ++operationCount;
+    });
+
+    socket.on('user:joined', (data) => {
+      updateUsersList();
+      showAlert(`User joined (${data.userCount} total)`);
+    });
+
+    socket.on('user:left', (data) => {
+      updateUsersList();
+      showAlert(`User left (${data.userCount} remaining)`);
+    });
+
+    socket.on('cursor:update', (data) => {
+      // In production, show actual cursor position
+      console.log(`Cursor update from ${data.userId}: ${data.position}`);
+    });
+
+    function createSession() {
+      socket.emit('session:create', (response) => {
+        sessionId = response.sessionId;
+        document.getElementById('session-id').value = response.sessionId;
+        document.getElementById('session-info').innerHTML = 
+          `<strong>Session:</strong> ${sessionId}`;
+        editor.setValue(response.document);
+        updateUsersList();
+        showAlert('Session created! Share the ID with others.');
+      });
+    }
+
+    function joinSession() {
+      const id = document.getElementById('session-id').value;
+      if (!id) {
+        alert('Please enter a session ID');
+        return;
+      }
+
+      socket.emit('session:join', id, (response) => {
+        if (response.error) {
+          alert(response.error);
+          return;
+        }
+        sessionId = id;
+        document.getElementById('session-info').innerHTML = 
+          `<strong>Session:</strong> ${sessionId}`;
+        editor.setValue(response.document);
+        updateUsersList();
+        showAlert('Joined session! Ready to collaborate.');
+      });
+    }
+
+    function updateUsersList() {
+      // In production, track actual user list
+      document.getElementById('users-list').innerHTML = 
+        `<div class="user-item"><div class="user-color" style="background: #4ec9b0;"></div>You</div>`;
+    }
+
+    function updateStatus(text, connected = false) {
+      const el = document.getElementById('status');
+      el.textContent = text;
+      el.className = 'status' + (connected ? ' connected' : '');
+    }
+
+    function showAlert(message) {
+      const alert = document.createElement('div');
+      alert.className = 'alert';
+      alert.textContent = message;
+      document.querySelector('.sidebar-section').appendChild(alert);
+      setTimeout(() => alert.remove(), 3000);
+    }
+
+    document.getElementById('language').addEventListener('change', (e) => {
+      monaco.editor.setModelLanguage(editor.getModel(), e.target.value);
+    });
+  </script>
+</body>
+</html>
