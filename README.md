@@ -80,9 +80,3 @@ npm run dev
 - API calls made
 - Time saved by caching
 
-## Deployment
-
-vercel
-## License
-
-MIT
