@@ -7,21 +7,22 @@ import NodeCache from 'node-cache';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
-// Validate required env vars early to provide clearer deploy errors
+// Check environment variables without crashing serverless boots
 const requiredEnv = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'GITHUB_CALLBACK_URL', 'SESSION_SECRET'];
 const missing = requiredEnv.filter((k) => !process.env[k]);
 if (missing.length) {
-  console.error('Missing required environment variables:', missing.join(', '));
-  if (process.env.NODE_ENV === 'production') {
-    console.error('In production NODE_ENV, exiting due to missing env vars.');
-    process.exit(1);
-  } else {
-    console.warn('Continuing in development mode. Set the missing variables before deploying to production.');
-  }
+  console.warn('⚠️ Missing environment variables:', missing.join(', '));
+  console.warn('Set these in your Vercel project settings to enable GitHub OAuth.');
 }
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicDir = path.resolve(__dirname, '../public');
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -41,14 +42,7 @@ const cacheStats = {
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static('public'));
-// WARNING: Default MemoryStore is not suitable for production (will leak memory and won't scale).
-// Use a persistent session store like Redis in production and set REDIS_URL accordingly.
-if (process.env.REDIS_URL) {
-  console.warn('REDIS_URL detected. You should configure a Redis-backed session store for production.');
-  // If desired, integrate connect-redis here. For now, continue using express-session.
-}
-
+app.use(express.static(publicDir));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-key',
   resave: false,
@@ -58,42 +52,56 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Passport GitHub strategy
-passport.use(new GitHubStrategy(
-  {
-    clientID: process.env.GITHUB_CLIENT_ID,
-    clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: process.env.GITHUB_CALLBACK_URL
-  },
-  (accessToken, refreshToken, profile, done) => {
-    profile.accessToken = accessToken;
-    return done(null, profile);
-  }
-));
+// Passport GitHub strategy (only initialized if credentials exist)
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+  passport.use(new GitHubStrategy(
+    {
+      clientID: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+      callbackURL: process.env.GITHUB_CALLBACK_URL || 'http://localhost:5001/auth/github/callback'
+    },
+    (accessToken, refreshToken, profile, done) => {
+      profile.accessToken = accessToken;
+      return done(null, profile);
+    }
+  ));
+} else {
+  console.warn('⚠️ GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are not set in environment variables.');
+}
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 
 // Routes
 app.get('/', (req, res) => {
-  if (req.isAuthenticated()) {
+  if (req.isAuthenticated && req.isAuthenticated()) {
     res.redirect('/dashboard');
   } else {
-    res.sendFile('public/index.html', { root: '.' });
+    res.sendFile(path.join(publicDir, 'index.html'));
   }
 });
 
-app.get('/auth/github', passport.authenticate('github', { scope: ['user:email', 'repo'] }));
+app.get('/auth/github', (req, res, next) => {
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.status(500).send('GitHub OAuth is not configured. Please set GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and GITHUB_CALLBACK_URL in your Vercel project environment variables.');
+  }
+  passport.authenticate('github', { scope: ['user:email', 'repo'] })(req, res, next);
+});
 
-app.get('/auth/github/callback', passport.authenticate('github', { failureRedirect: '/' }), (req, res) => {
-  res.redirect('/dashboard');
+app.get('/auth/github/callback', (req, res, next) => {
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.redirect('/');
+  }
+  passport.authenticate('github', { failureRedirect: '/' })(req, res, () => {
+    res.redirect('/dashboard');
+  });
 });
 
 app.get('/dashboard', (req, res) => {
-  if (!req.isAuthenticated()) {
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
     return res.redirect('/');
   }
-  res.sendFile('public/dashboard.html', { root: '.' });
+  res.sendFile(path.join(publicDir, 'dashboard.html'));
 });
 
 app.get('/logout', (req, res) => {
@@ -105,25 +113,28 @@ app.get('/logout', (req, res) => {
 
 // Get user data (authenticated)
 app.get('/api/user', (req, res) => {
-  if (!req.isAuthenticated()) {
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
   res.json({
     username: req.user.username,
-    avatar: req.user.photos[0]?.value,
+    avatar: req.user.photos?.[0]?.value,
     name: req.user.displayName
   });
 });
 
 // Get repository metrics with caching
 app.post('/api/repo-metrics', async (req, res) => {
-  if (!req.isAuthenticated()) {
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
   const { owner, repo } = req.body;
+  if (!owner || !repo) {
+    return res.status(400).json({ error: 'Owner and repo are required' });
+  }
+
   const cacheKey = `${owner}/${repo}`;
-  
   cacheStats.totalRequests++;
 
   // Check cache
@@ -154,7 +165,7 @@ app.post('/api/repo-metrics', async (req, res) => {
 
     const metrics = {
       name: response.data.name,
-      owner: response.data.owner.login,
+      owner: response.data.owner?.login,
       url: response.data.html_url,
       stars: response.data.stargazers_count,
       forks: response.data.forks_count,
@@ -197,9 +208,13 @@ app.get('/api/cache-stats', (req, res) => {
   });
 });
 
-// Start server
-app.listen(port, () => {
-  console.log(`DevMetrics server running on http://localhost:${port}`);
-  console.log('Cache TTL: ' + process.env.CACHE_TTL + 's');
-  console.log('Cache stats endpoint: /api/cache-stats');
-});
+// Start server locally (skip listen if running under Vercel Serverless environment)
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`DevMetrics server running on http://localhost:${port}`);
+    console.log('Cache TTL: ' + (process.env.CACHE_TTL || 300) + 's');
+    console.log('Cache stats endpoint: /api/cache-stats');
+  });
+}
+
+export default app;
